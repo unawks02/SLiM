@@ -1,0 +1,300 @@
+// TODO: 
+// recombination map
+// burnin function
+// have starting frequencies that we want so we don't need burnin
+// neutral burnin for LD: need linkage
+// burnin chapter 5.5 and 17 makes chunks of genome with LD blocks
+
+initialize() { 
+// talk to Jacob about mutation rate? or look at Daphnea: or set to 0 
+// no de novo mutations
+// maybe 1.2 e -8 (what Nathan is using)
+ initializeMutationRate(1e-7); 
+ 
+ //TODO: do I need a neutral mutation? 
+ initializeMutationType("m1", 0.5, "f", 0.0); // neutral, have mutation callback return F
+ initializeMutationType("m2", 0.5, "f", 0.0); // QTLs: temperature
+ initializeMutationType("m3", 0.5, "f", 0.0); // QTLs: salinity
+ initializeMutationType("m4", 0.5, "f", 0.0); // QTLs: pleiotropic
+ 
+ // leave at false: not evolving to fix (not super strong effect size)
+m2.convertToSubstitution = F; 
+m2.color = "red"; 
+m3.convertToSubstitution = F; 
+m3.color = "blue"; 
+m4.convertToSubstitution = F;
+m4.color = "purple";
+ 
+// g1 is a neutral region, g2-4 is a QTL
+// put areas in between sites as neutral mutation type
+ initializeGenomicElementType("g1", m1, 1.0); 
+ initializeGenomicElementType("g2", m2, 1.0); 
+ initializeGenomicElementType("g3", m3, 1.0);
+ initializeGenomicElementType("g4", m4, 1.0); 
+ 
+ 
+// TODO: This will be replaced with chormosome data from R
+// chromosome of length 0-146344000 with three QTL regions
+// fill in other spots with neutral data
+ initializeGenomicElement(g2, 60131716, 60134716); 
+ initializeGenomicElement(g2, 8858219, 8861219);
+ initializeGenomicElement(g2, 75728087, 75731087);
+ initializeGenomicElement(g2, 7268702, 7271702);
+ initializeGenomicElement(g2, 66655870, 66658870); 
+ initializeGenomicElement(g2, 112418628, 112421628);
+ initializeGenomicElement(g2, 27290315, 27293315);  
+ initializeGenomicElement(g2, 90857540, 90860540);
+ initializeGenomicElement(g2, 109912897, 109915897);
+ initializeGenomicElement(g2, 40227336, 40230336);
+  
+ initializeGenomicElement(g3, 141315982, 141318982); 
+ initializeGenomicElement(g3, 11503474, 11506474); 
+ initializeGenomicElement(g3, 11849629, 11852629); 
+ initializeGenomicElement(g3, 67902039, 67905039); 
+ initializeGenomicElement(g3, 90728135, 90731135);
+ initializeGenomicElement(g3, 113964650, 113967650);
+ initializeGenomicElement(g3, 96824174, 96827174); 
+ initializeGenomicElement(g3, 43637073, 43640073); 
+ initializeGenomicElement(g3, 133871663, 133874663); 
+ initializeGenomicElement(g3, 48706376, 48709376); 
+ 
+ initializeGenomicElement(g4, 101961566, 101964566); 
+ initializeGenomicElement(g4, 135818, 138818); 
+ 
+ initializeGenomicElement(g1, 0, 135817); 
+ initializeGenomicElement(g1, 138819, 7268701);
+ initializeGenomicElement(g1, 7271703, 8858218);
+ initializeGenomicElement(g1, 8861220, 11503473);
+ initializeGenomicElement(g1, 11506475, 11849628);
+ initializeGenomicElement(g1, 11852630, 27290314);
+ initializeGenomicElement(g1, 27293316, 40227335);
+ initializeGenomicElement(g1, 40230337, 43637072);
+ initializeGenomicElement(g1, 43640074, 48706375);
+ initializeGenomicElement(g1, 48709377, 60131715);
+ initializeGenomicElement(g1, 60134717, 66655869);
+ initializeGenomicElement(g1, 66658871, 67902038);
+ initializeGenomicElement(g1, 67905040, 75728086);
+ initializeGenomicElement(g1, 75731088, 90728134);
+ initializeGenomicElement(g1, 90731136, 90857539);
+ initializeGenomicElement(g1, 90860541, 96824173);
+ initializeGenomicElement(g1, 96827175, 101961565);
+ initializeGenomicElement(g1, 101964567, 109912896);
+ initializeGenomicElement(g1, 109915898, 112418627);
+ initializeGenomicElement(g1, 112421629, 113964649);
+ initializeGenomicElement(g1, 113967651, 133871662);
+ initializeGenomicElement(g1, 133877664, 141315981);
+ initializeGenomicElement(g1, 141318983, 146344000);
+ 
+ // recombination rate: 1.6e-8 (species from Brennan paper)
+ initializeRecombinationRate(1.6e-8); 
+ 
+// QTL-related constants used below
+// TODO: will I be changing these variables?
+ defineConstant("QTL_mu", c(0, 0)); //mean effect of new mutations on the two phenotypes
+ defineConstant("QTL_cov", 0.25); 
+ //covariance between the two effects (Look at paper, talk to Juanita?
+ //pleiotropy, linkage, tradeoff
+ //TODO: good parameter to vary if no one knows!!!
+ 
+ defineConstant("QTL_sigma", matrix(c(1,QTL_cov,QTL_cov,1), nrow=2)); 
+ //"variance-covariance matrix derived from QTL_cov that will govern new mutational effects"
+ 
+ defineConstant("QTL_optima", c(20, -20));
+//optimal phenotypic values for the two quantitative traits
+//A width of 20.0 is hard-coded here for the fitness functions
+/* 13.5: "note that the optima have different signs, but the sigma encodes a positive mutational correlation, so adaptation in this model will be contrary to the pleiotropically 
+preferred direction of evolution." */
+ 
+ /* to print out means and variance-covariance matrix 
+ catn("\nQTL DFE means: "); 
+ print(QTL_mu); 
+ catn("\nQTL DFE variance-covariance matrix: "); 
+ print(QTL_sigma); 
+ */
+ 
+ /* write to R 
+// find Rscript
+if (fileExists("/usr/bin/Rscript")) 
+ defineConstant("RSCRIPT", "/usr/bin/Rscript"); 
+else if (fileExists("/usr/local/bin/Rscript")) 
+ defineConstant("RSCRIPT", "/usr/local/bin/Rscript"); 
+else
+ stop("Couldn't find Rscript."); 
+*/
+} 
+
+
+//add population
+// TODO: edit population size
+// read from Burnin here 
+// add neutral burnin through python
+// PySLiM: vingette starting with diversity... chapter 17
+// use python recipe 
+// read from population file 
+1 late() { 
+sim.addSubpop("p1", 100); 
+} 
+
+
+// mutations
+mutation(m2) {  //temperature only
+
+//see section 25.8 in manual
+// draw mutational effects for the new m2 mutation
+ effects = rmvnorm(1, QTL_mu, QTL_sigma);
+ //to draw effects of mutation for each generation
+//effect sizes drawn from a multivariate normal distribution, 
+ mut.setValue("temp", effects[0]); 
+//matrix of two columns: effect size 0 and 1
+ 
+// remember all drawn effects, for our final output
+old_effects = sim.getValue("all_effects"); 
+sim.setValue("all_effects", rbind(old_effects, effects)); 
+ 
+return T; 
+} 
+
+mutation(m3) { //salinity only
+
+//see section 25.8 in manual
+// draw mutational effects for the new m3 mutation
+ effects = rmvnorm(1, QTL_mu, QTL_sigma);
+ //to draw effects of mutation for each generation
+//effect sizes drawn from a multivariate normal distribution, 
+ mut.setValue("sal", effects[1]); 
+//matrix of two columns: effect size 0 and 1
+ 
+// remember all drawn effects, for our final output
+old_effects = sim.getValue("all_effects"); 
+sim.setValue("all_effects", rbind(old_effects, effects)); 
+ 
+return T; 
+} 
+
+// mutation: pleiotropic
+mutation(m4) { 
+
+//see section 25.8 in manual
+// draw mutational effects for the new m4 mutation
+ effects = rmvnorm(1, QTL_mu, QTL_sigma);
+ //to draw effects of mutation for each generation
+//effect sizes drawn from a multivariate normal distribution, 
+ mut.setValue("temp", effects[0]); 
+ mut.setValue("sal", effects[1]); 
+//matrix of two columns: effect size 0 and 1
+ 
+// remember all drawn effects, for our final output
+old_effects = sim.getValue("all_effects"); 
+sim.setValue("all_effects", rbind(old_effects, effects)); 
+ 
+return T; 
+} 
+
+
+// code to calculate phenotype and fitness of each individual: 
+late() { 
+for (ind in sim.subpopulations.individuals) 
+ { 
+ // construct phenotypes from additive effects of QTL mutations
+ muts = ind.genomes.mutationsOfType(m2);
+ muts2 = ind.genomes.mutationsOfType(m3);
+ muts3 = ind.genomes.mutationsOfType(m4);
+ 
+ phenotype0 = size(muts) ? sum(muts.getValue("temp")) else 0.0; 
+ phenotype0 = phenotype0 + (size(muts3) ? sum(muts3.getValue("temp")) else 0.0);
+ phenotype1 = size(muts2) ? sum(muts2.getValue("sal")) else 0.0; 
+ phenotype1 = phenotype1 + (size(muts3) ? sum(muts3.getValue("sal")) else 0.0);
+ ind.setValue("phenotype0", phenotype0); //temp
+ ind.setValue("phenotype1", phenotype1); //salinity
+ 
+/* 13.5: "Using key-value pairs as in this recipe is a bit more complex, and a bit 
+slower, but more general and extensible; any number of keys can be defined on an object, 
+and so this recipe can be easily extended to any number of phenotypic traits, each 
+influenced by separate mutational effects.*/
+ 
+ // calculate fitness effects
+ // look at standard deviation: reduce? take another look at manual
+ effect0 = 1.0 + dnorm(QTL_optima[0] - phenotype0, 0.0, 20.0) * 10.0; 
+ effect1 = 1.0 + dnorm(QTL_optima[1] - phenotype1, 0.0, 20.0) * 10.0; 
+ //10.0 multiplier: an individual precisely at the phenotypic optimum has a fitness of 10.0
+ // relative to an individual infinitely far from the optimum
+ ind.fitnessScaling = effect0 * effect1; 
+ } 
+}
+
+
+/*Every thousend generations, the below method prints a summary of adaptation so far, with generation number and mean phenotype 0 and 1. 
+It continues to run untol both phenotypic means get withing 10% of their optima
+When it reaches this peak, final output is printed out: a dump of all of the segregating QTL mutations in the population, sorted by frequency*/
+
+//TODO: add allele frequency changes of mutations
+//output full: save final state of simulation (vsf)
+ 
+1:1000000 late() { 
+// output, run every 500 generations
+if (sim.generation % 500 != 0) 
+ return; 
+ 
+// print final phenotypes versus their optima
+ inds = sim.subpopulations.individuals; 
+ p0_mean = mean(inds.getValue("phenotype0")); 
+ p1_mean = mean(inds.getValue("phenotype1")); 
+ 
+ catn(); 
+ catn("Generation: " + sim.generation); 
+ catn("Mean phenotype temp: " + p0_mean + " (" + QTL_optima[0] + ")"); 
+ catn("Mean phenotype sal: " + p1_mean + " (" + QTL_optima[1] + ")"); 
+ 
+//TODO: add callouts to R output file here 
+ 
+// keep running until we get within 10% of both optima
+if ((abs(p0_mean - QTL_optima[0]) > abs(0.1 * QTL_optima[0])) | 
+ (abs(p1_mean - QTL_optima[1]) > abs(0.1 * QTL_optima[1]))) 
+ return; 
+ 
+// we are done with the main adaptive walk; print final output
+ 
+// get the QTL mutations and their frequencies
+ m2muts = sim.mutationsOfType(m2); 
+ m2freqs = sim.mutationFrequencies(NULL, m2muts); 
+ 
+// sort those vectors by frequency
+ o = order(m2freqs, ascending=F); 
+ m2muts = m2muts[o]; 
+ m2freqs = m2freqs[o];
+ // get the effect sizes
+ m2e0 = m2muts.getValue("temp"); 
+ m2e1 = m2muts.getValue("sal"); 
+ 
+ //also print out number of mutations of each type
+ // use VCF?
+ 
+// now output a list of the QTL mutations and their effect sizes
+ catn("\nQTL mutations (f: temp, sal):"); 
+for (i in seqAlong(m2muts)) 
+ catn(m2freqs[i] + ": " + m2e0[i] + ", " + m2e1[i]); 
+ 
+// output covariances
+ fixed_m2 = m2muts[m2freqs == 1.0]; 
+ cov_fixed = cov(fixed_m2.getValue("temp")); 
+ effects = sim.getValue("all_effects"); 
+ cov_drawn = cov(drop(effects[,0]), drop(effects[,1])); 
+ 
+ //cov_fixed = cov(fixed_m2.getValue("temp"), fixed_m2.getValue("sal"));
+ 
+ catn("\nCovariance of effects among fixed QTLs: " + cov_fixed); 
+ catn("\nCovariance of effects specified by the QTL DFE: " + QTL_cov); 
+ catn("\nCovariance of effects across all QTL draws: " + cov_drawn); 
+ 
+sim.simulationFinished(); 
+} 
+
+//extra code to plot to SLiMgui
+1  late() { 
+sim.setValue("history", matrix(c(0.0, 0.0), nrow=1)); 
+ defineConstant("pngPath", writeTempFile("plot_", ".png", "")); 
+ 
+// If we're running in SLiMgui, open a plot window
+if (exists("slimgui")) 
+ slimgui.openDocument(pngPath); 
+}
